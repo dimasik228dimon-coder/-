@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><title>Расписание</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#f4f5f9;--card:#fff;--tx:#1b1d24;--mut:#6b7080;--ac:#4f6df5;--ac2:#e8ecff;--red:#e5484d;--grn:#2ea36b;--bd:#e2e4ec;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14161c;--card:#1e2129;--tx:#eceef4;--mut:#9399ab;--ac:#7b92ff;--ac2:#2a3050;--red:#ff6b70;--grn:#4cc38a;--bd:#2d313c}}
+:root[data-theme="dark"]{--bg:#14161c;--card:#1e2129;--tx:#eceef4;--mut:#9399ab;--ac:#7b92ff;--ac2:#2a3050;--red:#ff6b70;--grn:#4cc38a;--bd:#2d313c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px system-ui,sans-serif;padding-bottom:76px}
+main{max-width:560px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:10px}
+.row{display:flex;gap:8px;align-items:center}.sp{justify-content:space-between}.w{flex-wrap:wrap}
+button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 12px}
+button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.badge{background:var(--ac2);color:var(--ac);border-radius:20px;padding:4px 12px;font-weight:600;font-size:14px}
+.strip{display:flex;gap:6px;margin:10px 0}.strip button{flex:1;padding:8px 0;font-size:13px;position:relative}
+.strip i{position:absolute;top:3px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--red)}
+input,textarea,select{font:inherit;width:100%;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:8px}
+textarea{resize:vertical;min-height:44px}input.ck{width:24px;height:24px;margin:10px 0 0;flex:none}
+.t{color:var(--mut);font-size:13px}.red{color:var(--red)}.grn{color:var(--grn)}h2{margin:0;font-size:20px}h3{margin:14px 0 6px;font-size:15px}
+.done{opacity:.6;text-decoration:line-through}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;border:0;border-radius:0;padding:14px 0;background:none;font-size:14px}nav button.on{color:var(--ac);background:none;font-weight:700}
+</style></head><body><main id="app"></main>
+<nav><button data-v="day">День</button><button data-v="edit">Расписание</button><button data-v="task">Задания</button><button data-v="more">Ещё</button></nav>
+<script>
+const DN=['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'],SH=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],WT=['Верхняя','Нижняя'];
+const MS=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const p2=n=>String(n).padStart(2,'0'),iso=d=>d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+const pd=s=>{const a=s.split('-');return new Date(+a[0],a[1]-1,+a[2])};
+const mon=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-(x.getDay()+6)%7);return x};
+const add=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>'x'+Math.random().toString(36).slice(2,9);
+const DB=()=>[['08:30','09:15'],['09:25','10:10'],['10:20','11:05'],['11:25','12:10'],['12:20','13:05'],['13:15','14:00'],['14:10','14:55'],['15:05','15:50']].map(a=>({s:a[0],e:a[1]}));
+const FIX={'02-23':'День защитника Отечества','03-08':'Международный женский день','05-01':'Праздник Весны и Труда','05-09':'День Победы','05-11':'День Республики (ДНР)','06-12':'День России','11-04':'День народного единства'};
+const H26={'03-09':'Перенос 8 марта','12-31':'Перенос выходного дня'};
+function hol(s){const y=+s.slice(0,4),md=s.slice(5),ny=md>='01-01'&&md<=(y===2026?'01-11':'01-08');
+ if(ny)return md==='01-07'?'Рождество Христово':'Новогодние каникулы';return(y===2026&&H26[md])||FIX[md]||null}
+function seed(){const sub=['Математика|Иванова Мария Петровна|ivanova@school.example','Русский язык|Сидорова Елена Викторовна|sidorova@school.example','Физика|Петров Алексей Николаевич|petrov@school.example','История|Козлов Сергей Игоревич|kozlov@school.example','Английский язык|Белова Ольга Андреевна|belova@school.example'].map(x=>{const a=x.split('|');return{id:uid(),n:a[0],tc:a[1],em:a[2]}});
+ const mk=a=>a.map((k,i)=>({id:uid(),n:i,s:sub[k].id}));
+ const sc=[[[0,1,2,3],[1,4,0],[2,3,0,1],[4,0,2],[1,3,4,0],[]],[[1,0,3],[0,2,4,1],[3,1],[0,4,2,3],[2,0,1],[]]].map(w=>w.map(mk));
+ const S={anchor:iso(mon(new Date())),type:0,bells:DB(),subj:sub,sched:sc,hw:{},off:{},done:{},demo:1};
+ const tx=['Упр. 45–47, выучить правило','Параграф 12, вопросы 1–5','Решить задачи №3, 5, 8','Подготовить пересказ'];
+ for(let i=-1;i<6;i++){const d=add(new Date(),i),w=(d.getDay()+6)%7;if(w>5)continue;const L=S.sched[wtOf(S,d)][w];L.slice(0,2).forEach((l,j)=>{(S.hw[iso(d)]=S.hw[iso(d)]||{})[l.id]=tx[(i+j+4)%4]});if(i<0)Object.keys(S.hw[iso(d)]||{}).forEach(id=>{S.done[iso(d)+'|'+id]=1})}
+ return S}
+const wtOf=(S,d)=>{const n=Math.round((mon(d)-pd(S.anchor))/6048e5);return(((S.type+n)%2)+2)%2};
+let S;try{S=JSON.parse(localStorage.getItem('sch2'))}catch(e){}
+if(!S)S={anchor:iso(mon(new Date())),type:0,bells:DB(),subj:[],sched:[0,1].map(()=>[0,1,2,3,4,5].map(()=>[])),hw:{},off:{},done:{}};
+if(!S.bells)S.bells=DB();S.sched.forEach(w=>w.forEach(d=>d.forEach((l,i)=>{if(l.n===undefined)l.n=i})));
+const save=()=>{try{localStorage.setItem('sch2',JSON.stringify(S))}catch(e){}};
+const wt=d=>wtOf(S,d),gs=id=>S.subj.find(x=>x.id===id)||{n:'Предмет',tc:''};
+const tm=l=>{const b=S.bells[l.n];return b?b.s+'–'+b.e:''};
+const tcl=b=>(b.tc||b.em)?`<div class="t">👤 ${esc(b.tc||'')} ${b.em?`<a href="mailto:${esc(b.em)}">✉️ ${esc(b.em)}</a>`:''}</div>`:'';
+function dayOff(s){const w=(pd(s).getDay()+6)%7,v=S.off[s];if(v===false)return null;if(v)return v===true?'Выходной':v;return w===6?'Воскресенье':hol(s)}
+let view='day',cur=new Date(),eW=0,eD=0;cur.setHours(0,0,0,0);
+const A=document.getElementById('app');
+function render(){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
+ A.innerHTML={day:rDay,edit:rEdit,task:rTask,more:rMore}[view]()}
+function rDay(){const s=iso(cur),w=(cur.getDay()+6)%7,t=wt(cur),off=dayOff(s),m=mon(cur);
+ let h=`<div class="row sp"><button onclick="mv(-1)">‹</button><div style="text-align:center"><h2>${DN[w]}, ${cur.getDate()} ${MS[cur.getMonth()]}</h2><span class="badge">${WT[t]} неделя</span></div><button onclick="mv(1)">›</button></div><div class="strip">`;
+ for(let i=0;i<7;i++){const d=add(m,i),k=iso(d);h+=`<button class="${k===s?'on':''}" onclick="go('${k}')">${SH[i]}<br>${d.getDate()}${dayOff(k)?'<i></i>':''}</button>`}
+ h+=`</div><div class="row" style="margin-bottom:10px"><button onclick="go('${iso(new Date())}')">Сегодня</button></div>`;
+ if(off)h+=`<div class="card"><b class="red">Выходной: ${esc(off)}</b><div class="row" style="margin-top:8px"><button onclick="tog('${s}',false)">Сделать учебным днём</button></div></div>`;
+ else{const L=S.sched[t][w];if(!L.length)h+='<div class="card t">Занятий нет. Добавьте их во вкладке «Расписание».</div>';
+  L.forEach(l=>{const b=gs(l.s),k=s+'|'+l.id,d=S.done[k];h+=`<div class="card"><div class="row sp"><b>${esc(b.n)}</b><span class="t">${l.n+1} пара · ${tm(l)}</span></div>${tcl(b)}<div class="row" style="align-items:flex-start"><input type="checkbox" class="ck" ${d?'checked':''} onchange="dn('${s}','${l.id}',this.checked)"><textarea style="margin-top:8px" placeholder="Домашнее задание на этот день…" oninput="hw('${s}','${l.id}',this.value)">${esc((S.hw[s]||{})[l.id]||'')}</textarea></div></div>`});
+  h+=`<div class="row"><button onclick="tog('${s}',true)">Отметить как выходной</button></div>`}
+ return h}
+function rEdit(){let h=`<div class="row" style="margin-bottom:8px">${[0,1].map(i=>`<button class="${eW===i?'on':''}" style="flex:1" onclick="eW=${i};render()">${WT[i]}</button>`).join('')}</div><div class="strip">${SH.slice(0,6).map((n,i)=>`<button class="${eD===i?'on':''}" onclick="eD=${i};render()">${n}</button>`).join('')}</div>`;
+ if(!S.subj.length)h+='<div class="card t">Сначала добавьте предметы и преподавателей: Ещё → Предметы.</div>';
+ const opts=l=>'<option value="">— предмет —</option>'+S.subj.map(x=>`<option value="${x.id}" ${x.id===l.s?'selected':''}>${esc(x.n)}</option>`).join('');
+ S.sched[eW][eD].forEach((l,i)=>{h+=`<div class="card"><div class="row"><select style="width:150px" onchange="ed(${i},'n',+this.value);render()">${S.bells.map((b,j)=>`<option value="${j}" ${j===l.n?'selected':''}>${j+1} · ${b.s}–${b.e}</option>`).join('')}</select><select onchange="ed(${i},'s',this.value);render()">${opts(l)}</select><button onclick="del(${i})">✕</button></div>${gs(l.s).tc?`<div class="t" style="margin-top:6px">👤 ${esc(gs(l.s).tc)}</div>`:''}</div>`});
+ return h+`<div class="row w"><button onclick="addL()">+ Добавить урок</button><button onclick="cp()">Копировать в другую неделю</button></div><p class="t">${DN[eD]}, ${WT[eW].toLowerCase()} неделя</p>`}
+function rTask(){const LM={},tdy=iso(new Date());S.sched.forEach(w=>w.forEach(d=>d.forEach(l=>LM[l.id]=l)));
+ const it=[];for(const s in S.hw)for(const id in S.hw[s])if((S.hw[s][id]||'').trim()&&LM[id])it.push({s,id,x:S.hw[s][id],d:!!S.done[s+'|'+id]});
+ const card=i=>{const b=gs(LM[i.id].s);return`<div class="card"><div class="row" style="align-items:flex-start"><input type="checkbox" class="ck" ${i.d?'checked':''} onchange="dn('${i.s}','${i.id}',this.checked,1)"><div class="${i.d?'done':''}"><b>${esc(b.n)}</b> <span class="t">${esc(b.tc)}</span><div>${esc(i.x)}</div></div></div></div>`};
+ const lab=s=>{const d=pd(s),n=Math.round((d-pd(tdy))/864e5),t=`${SH[(d.getDay()+6)%7]}, ${d.getDate()} ${MS[d.getMonth()]}`;return n<0?`<span class="red">${t} · просрочено</span>`:n===0?t+' · сегодня':n===1?t+' · завтра':t};
+ const act=it.filter(i=>!i.d).sort((a,b)=>a.s<b.s?-1:1),dn_=it.filter(i=>i.d).sort((a,b)=>a.s<b.s?1:-1);
+ let h='<h2>Задания</h2>';if(!act.length)h+='<p class="t">Активных заданий нет 🎉</p>';
+ let last='';act.forEach(i=>{if(i.s!==last){h+=`<h3>${lab(i.s)}</h3>`;last=i.s}h+=card(i)});
+ h+=`<h3 class="grn">Готовые (${dn_.length})</h3>`;last='';dn_.forEach(i=>{if(i.s!==last){h+=`<div class="t">${lab(i.s)}</div>`;last=i.s}h+=card(i)});return h}
+function rMore(){const t=wt(new Date()),n=new Date(),f=iso(new Date(n.getFullYear(),n.getMonth(),1)),l=iso(new Date(n.getFullYear(),n.getMonth()+1,0));
+ let h=`<div class="card"><b>Какая сейчас неделя?</b><p class="t">Сейчас: ${WT[t]}. Дальше недели меняются сами каждый понедельник.</p><div class="row">${[0,1].map(i=>`<button class="${t===i?'on':''}" style="flex:1" onclick="setW(${i})">${WT[i]}</button>`).join('')}</div></div>
+<div class="card"><b>Выходные на период</b><p class="t">Каникулы, карантин: выберите даты, и все дни отметятся сразу.</p><div class="row"><input type="date" id="pf" value="${f}"><input type="date" id="pt" value="${l}"></div><input id="pl" placeholder="Название (например, Каникулы)" style="margin:8px 0"><div class="row w"><button onclick="per('off')">Сделать выходными</button><button onclick="per('work')">Сделать учебными</button><button onclick="per('clr')">Сбросить</button></div><p class="t">Праздники и переносы по календарю РФ/ДНР уже учтены автоматически.</p></div>
+<div class="card"><b>Расписание звонков</b><p class="t">Начало и конец каждой пары. Изменения сразу попадают в расписание.</p>${S.bells.map((b,i)=>`<div class="row" style="margin-top:6px"><span style="width:22px">${i+1}</span><input type="time" value="${b.s}" onchange="bl(${i},'s',this.value)"><input type="time" value="${b.e}" onchange="bl(${i},'e',this.value)"><button onclick="bd(${i})">✕</button></div>`).join('')}<div style="margin-top:10px"><button onclick="ba()">+ Пара</button></div></div>
+<div class="card"><b>Предметы и преподаватели</b>`;
+ S.subj.forEach((x,i)=>{h+=`<div style="margin-top:8px"><div class="row"><input placeholder="Предмет" value="${esc(x.n)}" oninput="sj(${i},'n',this.value)"><button onclick="ds(${i})">✕</button></div><input style="margin-top:6px" placeholder="ФИО преподавателя" value="${esc(x.tc||'')}" oninput="sj(${i},'tc',this.value)"><input type="email" style="margin-top:6px" placeholder="Эл. почта преподавателя" value="${esc(x.em||'')}" oninput="sj(${i},'em',this.value)"></div>`});
+ return h+`<div style="margin-top:10px"><button onclick="S.subj.push({id:uid(),n:'',tc:''});save();render()">+ Добавить предмет</button></div></div><div class="card"><button onclick="if(confirm('Стереть всё, включая демо-данные?')){S={anchor:iso(mon(new Date())),type:0,subj:[],bells:DB(),sched:[0,1].map(()=>[0,1,2,3,4,5].map(()=>[])),hw:{},off:{},done:{}};save();render()}">Очистить всё (убрать демо)</button></div>`}
+function mv(n){cur=add(cur,n);render()}function go(k){cur=pd(k);render()}
+function tog(s,v){S.off[s]=v;save();render()}
+function hw(s,id,v){(S.hw[s]=S.hw[s]||{})[id]=v;save()}
+function dn(s,id,v,r){const k=s+'|'+id;if(v)S.done[k]=1;else delete S.done[k];save();if(r)render()}
+function ed(i,k,v){S.sched[eW][eD][i][k]=v;if(k==='n')S.sched[eW][eD].sort((a,b)=>a.n-b.n);save()}
+function del(i){S.sched[eW][eD].splice(i,1);save();render()}
+function addL(){S.sched[eW][eD].push({id:uid(),n:Math.min(S.sched[eW][eD].length,S.bells.length-1),s:''});save();render()}
+function cp(){const o=1-eW;if(confirm('Заменить '+DN[eD]+' ('+WT[o].toLowerCase()+') этим днём?')){S.sched[o][eD]=S.sched[eW][eD].map(l=>({...l,id:uid()}));save();alert('Готово')}}
+function setW(i){S.anchor=iso(mon(new Date()));S.type=i;save();render()}
+function bl(i,k,v){S.bells[i][k]=v;save()}
+function bd(i){if(S.bells.length<2)return;S.bells.splice(i,1);S.sched.forEach(w=>w.forEach(d=>d.forEach(l=>{if(l.n>=S.bells.length)l.n=S.bells.length-1})));save();render()}
+function ba(){const l=S.bells[S.bells.length-1],q=l.e.split(':').map(Number),t=q[0]*60+q[1]+10,f=x=>p2(Math.floor(x/60)%24)+':'+p2(x%60);S.bells.push({s:f(t),e:f(t+45)});save();render()}
+function sj(i,k,v){S.subj[i][k]=v;save()}
+function ds(i){if(!confirm('Удалить предмет и его уроки?'))return;const id=S.subj[i].id;S.subj.splice(i,1);S.sched.forEach(w=>w.forEach((d,j)=>{w[j]=d.filter(l=>l.s!==id)}));save();render()}
+function per(m){const f=document.getElementById('pf').value,t=document.getElementById('pt').value,n=document.getElementById('pl').value.trim();if(!f||!t||f>t)return alert('Проверьте даты');
+ let d=pd(f),c=0;while(iso(d)<=t&&c++<400){const k=iso(d);if(m==='off')S.off[k]=n||'Выходной';else if(m==='work')S.off[k]=false;else delete S.off[k];d=add(d,1)}save();alert('Готово: обработано дней — '+c)}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{view=b.dataset.v;render()});
+render();
+</script></body></html>
